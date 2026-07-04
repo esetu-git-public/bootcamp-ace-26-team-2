@@ -1,21 +1,21 @@
+import { getDocuments } from '../services/documents';
+
 // TODO: Replace with actual API integration
 
 export async function fetchDashboardStats() {
-  // TODO: Connect to backend API endpoint for dashboard statistics
-  // const response = await fetch('/api/dashboard/stats');
-  // return response.json();
+  const docs = getDocuments();
   return {
-    contractsUploaded: null,
+    contractsUploaded: docs.length,
     questionsAsked: null,
-    recentUploads: null,
+    recentUploads: docs.filter((d) => {
+      const daysAgo = (Date.now() - d.createdAt) / 86400000;
+      return daysAgo < 7;
+    }).length,
   };
 }
 
 export async function fetchRecentDocuments() {
-  // TODO: Connect to backend API endpoint for recent documents
-  // const response = await fetch('/api/documents/recent');
-  // return response.json();
-  return [];
+  return getDocuments().slice(0, 5);
 }
 
 export async function fetchRecentActivity() {
