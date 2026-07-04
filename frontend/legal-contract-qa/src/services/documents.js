@@ -55,3 +55,12 @@ export function updateDocumentStatus(id, status) {
 export async function fetchDocuments() {
   return getDocuments();
 }
+
+export async function uploadDocument(file) {
+  const name = file?.name || `Contract - ${new Date().toLocaleDateString()}`;
+  return addDocument(name);
+}
+
+export async function deleteDocument(id) {
+  removeDocument(id);
+}
