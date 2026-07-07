@@ -1,3 +1,4 @@
+import { supabase } from '../utils/supabase';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -61,23 +62,28 @@ export default function Register() {
     const onSubmit = async (data) => {
         setLoading(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            const { error } = await supabase.auth.signUp({
+                email: data.email,
+                password: data.password,
+                options: { data: { full_name: data.name } },
+            });
+            if (error) throw error;
             toast.success('Account created! Redirecting to dashboard...');
             setTimeout(() => (window.location.href = '/dashboard'), 1500);
-        } catch {
-            toast.error('Could not create your account. Please try again.');
+        } catch (err) {
+            toast.error(err.message || 'Could not create your account. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleSocialRegister = async (provider) => {
+    const handleSocialRegister = async () => {
         setLoading(true);
         try {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            toast.success(`Continuing with ${provider}...`);
-        } catch {
-            toast.error(`Could not sign up with ${provider}.`);
+            const { error } = await supabase.auth.signInWithOAuth({ provider: 'github' });
+            if (error) throw error;
+        } catch (err) {
+            toast.error(err.message || 'Could not sign up with GitHub.');
         } finally {
             setLoading(false);
         }
