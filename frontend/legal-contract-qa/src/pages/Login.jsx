@@ -1,3 +1,4 @@
+import { supabase } from '../utils/supabase';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -20,31 +21,40 @@ export default function Login() {
         resolver: zodResolver(loginSchema),
     });
 
+    const handleSocialLogin = async () => {
+        setLoading(true);
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({ provider: 'github' });
+            if (error) throw error;
+        } catch (err) {
+            toast.error(err.message || 'Could not sign in with GitHub.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const onSubmit = async (data) => {
-        setLoading(true);
-        try {
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-            toast.success('Welcome back! Redirecting to dashboard...');
-            setTimeout(() => (window.location.href = '/dashboard'), 1000);
-        } catch {
-            toast.error('Invalid email or password. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
+    console.log("LOGIN FUNCTION RUNNING", data);
 
-    const handleSocialLogin = async (provider) => {
-        setLoading(true);
-        try {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            toast.success(`Continuing with ${provider}...`);
-        } catch {
-            toast.error(`Could not sign in with ${provider}.`);
-        } finally {
-            setLoading(false);
-        }
-    };
+    setLoading(true);
 
+    try {
+        const { error } = await supabase.auth.signInWithPassword({
+            email: data.email,
+            password: data.password,
+        });
+
+        if (error) throw error;
+
+        toast.success('Login successful!');
+        window.location.href = '/dashboard';
+    } catch (error) {
+        console.log(error);
+        toast.error(error.message);
+    } finally {
+        setLoading(false);
+    }
+};
     return (
         <AuthLayout title="Welcome back" subtitle="Sign in to your account to continue">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
