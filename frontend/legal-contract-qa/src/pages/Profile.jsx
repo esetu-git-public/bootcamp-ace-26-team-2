@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Lock, Mail, User, Calendar, Clock, LogOut, Shield, RefreshCw,
   BadgeCheck, Fingerprint, Trash2, AlertTriangle,
-  FileText, MessageSquare, ListTodo,
+  FileText, ListTodo,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/ui/Button';
@@ -228,7 +228,6 @@ export default function Profile() {
 
   const content = [
     { key: 'contractsUploaded', label: 'Contracts Uploaded', icon: FileText, gradient: 'from-primary to-secondary' },
-    { key: 'questionsAsked', label: 'Questions Asked', icon: MessageSquare, gradient: 'from-accent to-cyan-500' },
     { key: 'conversations', label: 'Conversations', icon: ListTodo, gradient: 'from-green-500 to-emerald-500' },
   ];
 
