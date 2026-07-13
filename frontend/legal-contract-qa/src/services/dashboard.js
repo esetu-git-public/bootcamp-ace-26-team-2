@@ -20,7 +20,6 @@ export async function fetchDashboardStats() {
     contractsUploaded: docs.length || null,
     documentsIndexed: docs.filter((d) => d.status === 'indexed').length || null,
     storageUsed: formatBytes(totalBytes),
-    questionsAsked: null,
   };
 }
 

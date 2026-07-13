@@ -89,7 +89,6 @@ const STAT_CARDS = [
   { key: 'contractsUploaded', label: 'Contracts Uploaded', icon: FileText, gradient: 'from-primary to-secondary' },
   { key: 'documentsIndexed', label: 'Documents Indexed', icon: FileText, gradient: 'from-accent to-cyan-500' },
   { key: 'storageUsed', label: 'Storage Used', icon: HardDrive, gradient: 'from-green-500 to-emerald-500' },
-  { key: 'questionsAsked', label: 'Questions Asked', icon: MessageSquare, gradient: 'from-orange-500 to-amber-500' },
 ];
 
 const QUICK_ACTIONS = [

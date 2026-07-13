@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Menu, X, Scale } from 'lucide-react';
 import Sidebar from '../components/layout/Sidebar';
 
@@ -48,18 +48,15 @@ export default function DashboardLayout() {
         </header>
 
         {/* Page content */}
-        <AnimatePresence mode="wait">
-          <motion.main
-            key={location.pathname}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.2 }}
-            className="flex-1 p-6 lg:p-8"
-          >
-            <Outlet />
-          </motion.main>
-        </AnimatePresence>
+        <motion.main
+          key={location.pathname}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="flex-1 p-6 lg:p-8"
+        >
+          <Outlet />
+        </motion.main>
       </div>
     </div>
   );

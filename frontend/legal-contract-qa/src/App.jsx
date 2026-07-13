@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
+
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
@@ -34,22 +34,17 @@ function AppRoutes() {
 
       {!isAuthPage && !isDashboard && <Navbar />}
 
-      <AnimatePresence mode="wait">
-        <Routes
-          location={location}
-          key={location.pathname.startsWith('/dashboard') ? '/dashboard' : location.pathname}
-        >
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="documents" element={<Documents />} />
-            <Route path="chat" element={<ChatAssistant />} />
-            <Route path="profile" element={<Profile />} />
-          </Route>
-        </Routes>
-      </AnimatePresence>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="documents" element={<Documents />} />
+          <Route path="chat" element={<ChatAssistant />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
+      </Routes>
 
       {!isAuthPage && !isDashboard && <Footer />}
     </>
