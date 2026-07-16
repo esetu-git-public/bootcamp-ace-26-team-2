@@ -241,7 +241,11 @@ export default function ChatAssistant() {
               </p>
             </div>
           ) : (
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+=======
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 p-6 space-y-4 pb-24">
+
               <AnimatePresence initial={false}>
                 {messages.map((msg, i) => (
                   <motion.div

@@ -53,9 +53,13 @@ export default function DashboardLayout() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
+
+          className="flex-1 flex flex-col min-h-0 p-6 lg:p-8"
+=======
           className="flex flex-col flex-1 p-6 lg:p-8 min-h-0"
 
           className="flex flex-col flex-1 p-6 lg:p-8 min-h-0 overflow-y-auto"
+
 
         >
           <Outlet />
