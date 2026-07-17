@@ -17,39 +17,32 @@ function saveStoredProfile(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-function mapProfile(user) {
-  const stored = getStoredProfile() || {};
-  return {
-    id: user.id,
-    name: user.user_metadata?.full_name || stored.name || null,
-    email: user.email || null,
-    role: stored.role || 'User',
-    memberSince: user.created_at || stored.memberSince || null,
-    lastLogin: stored.lastLogin || null,
-    emailVerified: user.email_confirmed_at ? true : false,
-    accountStatus: stored.accountStatus || 'active',
-    passwordLastChanged: stored.passwordLastChanged || null,
-    twoFactorEnabled: stored.twoFactorEnabled || false,
-  };
-}
-
 export async function fetchProfile() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) return mapProfile(user);
+    if (user) {
+      const stored = getStoredProfile() || {};
+      return {
+        id: user.id,
+        name: user.user_metadata?.full_name || stored.name || null,
+        email: user.email || null,
+        role: stored.role || 'User',
+        memberSince: user.created_at || stored.memberSince || null,
+        lastLogin: stored.lastLogin || null,
+        emailVerified: user.email_confirmed_at ? true : false,
+        accountStatus: stored.accountStatus || 'active',
+        passwordLastChanged: stored.passwordLastChanged || null,
+        twoFactorEnabled: stored.twoFactorEnabled || false,
+      };
+    }
   } catch {
-    // fall through
-  }
-
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) return mapProfile(session.user);
-  } catch {
-    // fall through
+    // fall through to localStorage
   }
 
   const stored = getStoredProfile();
-  if (stored) return stored;
+  if (stored) {
+    return stored;
+  }
 
   return {
     id: null, name: null, email: null, role: null,

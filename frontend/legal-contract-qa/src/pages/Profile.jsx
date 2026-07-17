@@ -2,13 +2,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Lock, Mail, User, Calendar, Clock, LogOut, Shield, RefreshCw,
   BadgeCheck, Fingerprint, Trash2, AlertTriangle,
+  FileText, ListTodo,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import DashboardSection from '../components/dashboard/DashboardSection';
+import DashboardStatCard from '../components/dashboard/DashboardStatCard';
 import ProfileCard from '../components/profile/ProfileCard';
-import { fetchProfile, changePassword, deleteAccount } from '../services/profile';
+import { fetchProfile, fetchProfileStats, changePassword, deleteAccount } from '../services/profile';
 
 function LoadingSkeleton() {
   return (
@@ -83,19 +85,17 @@ function InfoRow({ label, value, icon: Icon }) {
       ? value
         ? 'Yes'
         : 'No'
-      : typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)
-        ? value.split('T')[0]
-        : value;
+      : value;
 
   if (value === null || value === undefined || value === '') return null;
 
   return (
     <div className="flex items-center justify-between py-3">
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-3">
         <Icon className="w-5 h-5 text-muted shrink-0" />
-        <span className="text-sm text-muted whitespace-nowrap">{label}</span>
+        <span className="text-sm text-muted">{label}</span>
       </div>
-      <span className="text-sm font-medium text-text text-right min-w-0 ml-4">{displayValue}</span>
+      <span className="text-sm font-medium text-text">{displayValue}</span>
     </div>
   );
 }
@@ -132,6 +132,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
+  const [stats, setStats] = useState(null);
   const mountedRef = useRef(true);
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -147,9 +148,13 @@ export default function Profile() {
     setLoading(true);
     setError(null);
     try {
-      const profileData = await fetchProfile();
+      const [profileData, statsData] = await Promise.all([
+        fetchProfile(),
+        fetchProfileStats(),
+      ]);
       if (!mountedRef.current) return;
       setUser(profileData);
+      setStats(statsData);
     } catch {
       if (!mountedRef.current) return;
       setError(true);
@@ -221,6 +226,13 @@ export default function Profile() {
     return <ErrorState onRetry={loadProfile} />;
   }
 
+  const content = [
+    { key: 'contractsUploaded', label: 'Contracts Uploaded', icon: FileText, gradient: 'from-primary to-secondary' },
+    { key: 'conversations', label: 'Conversations', icon: ListTodo, gradient: 'from-green-500 to-emerald-500' },
+  ];
+
+  const hasStats = content.some((c) => stats?.[c.key] !== null);
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
@@ -248,12 +260,34 @@ export default function Profile() {
         />
       </div>
 
+      {/* Quick Statistics */}
+      {hasStats && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-4">Quick Statistics</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {content.map((c) => {
+              const val = stats?.[c.key];
+              if (val === null) return null;
+              return (
+                <DashboardStatCard
+                  key={c.key}
+                  icon={c.icon}
+                  label={c.label}
+                  value={val}
+                  gradient={c.gradient}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Security */}
       <DashboardSection title="Security" className="mb-8">
         <p className="text-sm text-muted mb-6">
           Update your password to maintain account security.
         </p>
-        <form onSubmit={handlePasswordChange} className="space-y-4">
+        <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
           <Input
             label="Current Password"
             icon={Lock}
