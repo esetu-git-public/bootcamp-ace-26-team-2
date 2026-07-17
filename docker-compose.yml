@@ -1,0 +1,10 @@
+services:
+  legal-contract-qa:
+    build:
+      context: .
+      args:
+        VITE_SUPABASE_URL: https://iqvspttbvqfueyqdseok.supabase.co
+        VITE_SUPABASE_ANON_KEY: sb_publishable_qOKnfRRVmKxWlTX9M1PVBA_BxfBiB56
+    ports:
+      - "8080:80"
+    env_file: .env
