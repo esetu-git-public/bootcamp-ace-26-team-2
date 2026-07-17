@@ -68,19 +68,23 @@ export default function UploadModal({ open, onClose, onSuccess }) {
     if (!files.length) return;
     setLoading(true);
     setErrors([]);
-    let successCount = 0;
-    let failCount = 0;
 
-    for (const file of files) {
-      try {
-        await uploadDocument(file);
-        successCount++;
-      } catch {
-        failCount++;
-      }
-    }
+    const results = await Promise.allSettled(files.map(file => uploadDocument(file)));
 
     setLoading(false);
+
+    let successCount = 0;
+    let failCount = 0;
+    let lastError = '';
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        successCount++;
+      } else {
+        failCount++;
+        lastError = result.reason?.message || 'Upload failed';
+      }
+    }
 
     if (successCount > 0) {
       const label = successCount === 1 ? 'contract' : 'contracts';
@@ -91,7 +95,7 @@ export default function UploadModal({ open, onClose, onSuccess }) {
     }
 
     if (failCount > 0) {
-      setErrors([`${failCount} file${failCount > 1 ? 's' : ''} failed to upload. Please try again.`]);
+      setErrors(lastError ? [lastError] : [`${failCount} file${failCount > 1 ? 's' : ''} failed to upload. Please try again.`]);
     }
   };
 

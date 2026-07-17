@@ -13,12 +13,7 @@ import QuickActionCard from '../components/dashboard/QuickActionCard';
 import ApplicationStatusCard from '../components/dashboard/ApplicationStatusCard';
 import UploadModal from '../components/documents/UploadModal';
 import StatusBadge from '../components/documents/StatusBadge';
-import {
-  fetchDashboardStats,
-  fetchRecentDocuments,
-  fetchRecentActivity,
-  fetchApplicationStatus,
-} from '../services/dashboard';
+import { fetchDashboardStats } from '../services/dashboard';
 import { fetchProfile } from '../services/profile';
 
 function LoadingSkeleton() {
@@ -29,8 +24,8 @@ function LoadingSkeleton() {
         <div className="h-5 w-72 bg-card-hover rounded-lg animate-pulse" />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-8">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+        {[1, 2, 3].map((i) => (
           <div key={i} className="glass rounded-2xl p-6">
             <div className="w-10 h-10 rounded-xl bg-card-hover animate-pulse mb-4" />
             <div className="h-8 w-16 bg-card-hover rounded-lg animate-pulse mb-2" />
@@ -85,8 +80,10 @@ function ErrorState({ onRetry }) {
   );
 }
 
+const MAX_DOCUMENTS = 30;
+
 const STAT_CARDS = [
-  { key: 'contractsUploaded', label: 'Contracts Uploaded', icon: FileText, gradient: 'from-primary to-secondary' },
+  { key: 'contractsUploaded', label: 'Documents Uploaded', icon: FileText, gradient: 'from-primary to-secondary' },
   { key: 'documentsIndexed', label: 'Documents Indexed', icon: FileText, gradient: 'from-accent to-cyan-500' },
   { key: 'storageUsed', label: 'Storage Used', icon: HardDrive, gradient: 'from-green-500 to-emerald-500' },
 ];
@@ -121,19 +118,17 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [profileData, statsData, docsData, activityData, statusData] = await Promise.all([
-        fetchProfile(),
-        fetchDashboardStats(),
-        fetchRecentDocuments(),
-        fetchRecentActivity(),
-        fetchApplicationStatus(),
+      const [profileData, statsData] = await Promise.all([
+        fetchProfile().catch(() => null),
+        fetchDashboardStats().catch(() => ({ documents: [], activity: [] })),
       ]);
+
       if (!mountedRef.current) return;
       setUserName(profileData?.name || null);
-      setStats(statsData);
-      setDocuments(docsData);
-      setActivity(activityData);
-      setAppStatus(statusData);
+      setStats({ contractsUploaded: statsData?.contractsUploaded ?? null, documentsIndexed: statsData?.documentsIndexed ?? null, storageUsed: statsData?.storageUsed ?? null });
+      setDocuments(statsData?.documents || []);
+      setActivity(statsData?.activity || []);
+      setAppStatus(statsData?.appStatus || null);
     } catch {
       if (!mountedRef.current) return;
       setError(true);
@@ -207,13 +202,13 @@ export default function Dashboard() {
       </div>
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 mb-8">
-        {STAT_CARDS.map((card) => (
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
+        {STAT_CARDS.map((card, index) => (
           <DashboardStatCard
             key={card.key}
             icon={card.icon}
             label={card.label}
-            value={stats?.[card.key]}
+            value={index === 0 && stats?.[card.key] != null ? `${stats[card.key]} / ${MAX_DOCUMENTS}` : stats?.[card.key]}
             gradient={card.gradient}
           />
         ))}
