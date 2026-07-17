@@ -15,6 +15,7 @@ from app.api.deps import get_current_user
 from app.services.document_db_service import DocumentDBService
 from app.services.storage_service import StorageService
 from app.services.faiss_index_service import FaissIndexService
+from app.services.faiss_storage_service import FaissStorageService
 from app.services.contract_analysis_service import ContractAnalysisService
 
 logger = logging.getLogger(__name__)
@@ -100,16 +101,52 @@ class HealthResponse(BaseModel):
 
 
 @router.get("/{document_id}/health", response_model=HealthResponse)
-async def document_health(document_id: str) -> HealthResponse:
+async def document_health(
+    document_id: str,
+    user_id: str = Depends(get_current_user),
+) -> HealthResponse:
     """
     Analyze a document's clause coverage and return a health assessment.
 
-    Retrieves the document's chunk texts from the vector index, runs
-    keyword-based clause detection, computes a health score, and
-    generates recommendations for missing clauses.
+    Downloads the authenticated user's FAISS index from Supabase Storage,
+    retrieves the document's chunk texts, runs keyword-based clause
+    detection, computes a health score, and generates recommendations
+    for missing clauses.
     """
+    faiss_storage = FaissStorageService()
+
+    if not faiss_storage.index_exists(user_id):
+        return HealthResponse(
+            health_score=0.0,
+            risk_level="Critical",
+            present_clauses=[],
+            missing_clauses=list(ContractAnalysisService.CLAUSE_PATTERNS.keys()),
+            recommendations=[],
+        )
+
+    temp_dir = faiss_storage.create_temp_dir()
     try:
-        idx_service = FaissIndexService.load()
+        faiss_storage.download_user_index(user_id, temp_dir)
+        idx_service = FaissIndexService.load(
+            temp_dir / "index.faiss",
+            temp_dir / "index.pkl",
+        )
+
+        chunks = idx_service.get_chunks_by_document_id(document_id)
+
+        if not chunks:
+            return HealthResponse(
+                health_score=0.0,
+                risk_level="Critical",
+                present_clauses=[],
+                missing_clauses=list(ContractAnalysisService.CLAUSE_PATTERNS.keys()),
+                recommendations=[],
+            )
+
+        analyzer = ContractAnalysisService()
+        result = analyzer.analyze(chunks)
+
+        return HealthResponse(**result)
     except FileNotFoundError:
         return HealthResponse(
             health_score=0.0,
@@ -118,19 +155,5 @@ async def document_health(document_id: str) -> HealthResponse:
             missing_clauses=list(ContractAnalysisService.CLAUSE_PATTERNS.keys()),
             recommendations=[],
         )
-
-    chunks = idx_service.get_chunks_by_document_id(document_id)
-
-    if not chunks:
-        return HealthResponse(
-            health_score=0.0,
-            risk_level="Critical",
-            present_clauses=[],
-            missing_clauses=list(ContractAnalysisService.CLAUSE_PATTERNS.keys()),
-            recommendations=[],
-        )
-
-    analyzer = ContractAnalysisService()
-    result = analyzer.analyze(chunks)
-
-    return HealthResponse(**result)
+    finally:
+        faiss_storage.cleanup_temp_dir(temp_dir)
