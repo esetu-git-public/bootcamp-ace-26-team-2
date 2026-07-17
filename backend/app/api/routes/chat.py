@@ -4,17 +4,23 @@ Chat and document Q&A endpoints.
 Handles user queries against uploaded legal documents
 by orchestrating the RAG pipeline. Supports optional
 document_id scoping for multi-document retrieval.
+
+Each request loads the authenticated user's FAISS index
+from Supabase Storage into a temporary directory.
 """
 
 import logging
 import traceback
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.deps import get_current_user
 from app.models.search_result import SearchResult
-from app.services.rag_pipeline_service import RAGPipelineService
 from app.services.faiss_index_service import FaissIndexService
+from app.services.faiss_storage_service import FaissStorageService
+from app.services.rag_pipeline_service import RAGPipelineService
+from app.services.retrieval_service import RetrievalService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -36,27 +42,19 @@ class ChatResponse(BaseModel):
     model: str = Field(description="LLM model identifier used for generation")
 
 
-_service: RAGPipelineService | None = None
-
-
-def get_service() -> RAGPipelineService:
-    global _service
-    if _service is None:
-        _service = RAGPipelineService()
-    return _service
-
-
-def clear_service_cache() -> None:
-    """Reset the cached RAGPipelineService so it reloads the index on next request."""
-    global _service
-    _service = None
-
-
 @router.post("/ask", response_model=ChatResponse)
-async def ask_question(request: ChatRequest) -> ChatResponse:
+async def ask_question(
+    request: ChatRequest,
+    user_id: str = Depends(get_current_user),
+) -> ChatResponse:
     """
-    Accept a user question, retrieve relevant contract clauses,
-    and return a generated answer grounded in the retrieved context.
+    Accept a user question, retrieve relevant contract clauses
+    from the authenticated user's FAISS index, and return a
+    generated answer grounded in the retrieved context.
+
+    The user's FAISS index is downloaded from Supabase Storage
+    into a temporary directory, loaded, queried, and cleaned up
+    on every request.
 
     If *document_id* is provided, retrieval is scoped to chunks
     belonging to that document.  If the document does not exist,
@@ -65,42 +63,68 @@ async def ask_question(request: ChatRequest) -> ChatResponse:
 
     When *document_id* is omitted, the entire index is searched.
     """
-    # Validate document_id if provided
-    if request.document_id:
-        try:
-            idx_service = FaissIndexService.load()
-        except FileNotFoundError:
-            raise HTTPException(status_code=404, detail="Document not found.")
+    faiss_storage = FaissStorageService()
 
-        if not idx_service.document_exists(request.document_id):
-            raise HTTPException(status_code=404, detail="Document not found.")
+    if not faiss_storage.index_exists(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail="No index found. Upload a document first.",
+        )
 
-        # Check whether the document has any indexed chunks
-        doc_chunks = [
-            m.get("document_id")
-            for m in idx_service._metadata_list
-            if m.get("document_id") == request.document_id
-        ]
-        if not doc_chunks:
-            raise HTTPException(
-                status_code=400,
-                detail="Document has not been indexed.",
-            )
-
-    logger.info(
-        "Chat request: query='%s', document_id=%s",
-        request.query[:80],
-        request.document_id,
-    )
-
+    temp_dir = faiss_storage.create_temp_dir()
     try:
-        service = get_service()
-        result = service.answer(request.query, document_id=request.document_id)
+        logger.info("Downloading FAISS index for user=%s from FAISS/%s/", user_id, user_id)
+        faiss_storage.download_user_index(user_id, temp_dir)
+        index_path = temp_dir / "index.faiss"
+        metadata_path = temp_dir / "index.pkl"
+        logger.info(
+            "Downloaded FAISS index for user=%s: temp_dir=%s, index.faiss exists=%s, index.pkl exists=%s",
+            user_id,
+            temp_dir,
+            index_path.exists(),
+            metadata_path.exists(),
+        )
+        idx_service = FaissIndexService.load(index_path, metadata_path)
+        logger.info(
+            "FAISS index loaded for user=%s: size=%d, dimension=%d",
+            user_id,
+            idx_service.size,
+            idx_service._index.d if idx_service._index else 0,
+        )
+
+        # Validate document_id if provided
+        if request.document_id:
+            if not idx_service.document_exists(request.document_id):
+                raise HTTPException(status_code=404, detail="Document not found.")
+
+            doc_chunks = [
+                m.get("document_id")
+                for m in idx_service._metadata_list
+                if m.get("document_id") == request.document_id
+            ]
+            if not doc_chunks:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Document has not been indexed.",
+                )
+
+        logger.info(
+            "Chat request: user=%s, query='%s', document_id=%s",
+            user_id,
+            request.query[:80],
+            request.document_id,
+        )
+
+        # Build retrieval and RAG pipeline with this user's index
+        retrieval_service = RetrievalService(index_service=idx_service)
+        rag_service = RAGPipelineService(retrieval_service=retrieval_service)
+        result = rag_service.answer(request.query, document_id=request.document_id)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(
-            "Chat pipeline failed: %s\n%s",
+            "Chat pipeline failed for user %s: %s\n%s",
+            user_id,
             e,
             traceback.format_exc(),
         )
@@ -108,9 +132,12 @@ async def ask_question(request: ChatRequest) -> ChatResponse:
             status_code=500,
             detail=f"Failed to process your question: {str(e)}",
         )
+    finally:
+        faiss_storage.cleanup_temp_dir(temp_dir)
 
     logger.info(
-        "Chat response: answer_len=%d, sources=%d, model=%s",
+        "Chat response for user %s: answer_len=%d, sources=%d, model=%s",
+        user_id,
         len(result.answer),
         len(result.sources),
         result.model,

@@ -20,8 +20,8 @@ from app.models.document import Document
 from app.services.chunk_service import ChunkService
 from app.services.embedding_service import EmbeddingService
 from app.services.faiss_index_service import FaissIndexService
+from app.services.faiss_storage_service import FaissStorageService
 from app.api.deps import get_current_user
-from app.api.routes.chat import clear_service_cache
 from app.services.storage_service import StorageService
 from app.services.document_db_service import DocumentDBService
 
@@ -113,17 +113,25 @@ async def upload_document(
     chunk_text_map = {c.id: c.text for c in chunks}
     ordered_texts = [chunk_text_map.get(e.chunk_id, "") for e in valid]
 
-    # Append to existing index or build fresh
+    # Append to existing per-user index or build fresh, then upload to Supabase
+    faiss_storage = FaissStorageService()
+    temp_dir = faiss_storage.create_temp_dir()
     try:
-        index_service = FaissIndexService.load()
-        index_service.append_embeddings(valid, chunk_texts=ordered_texts)
-    except FileNotFoundError:
-        index_service = FaissIndexService()
-        index_service.build_index(valid, chunk_texts=ordered_texts)
+        index_path = temp_dir / "index.faiss"
+        metadata_path = temp_dir / "index.pkl"
 
-    index_service.save()
+        if faiss_storage.index_exists(user_id):
+            faiss_storage.download_user_index(user_id, temp_dir)
+            index_service = FaissIndexService.load(index_path, metadata_path)
+            index_service.append_embeddings(valid, chunk_texts=ordered_texts)
+        else:
+            index_service = FaissIndexService(index_path, metadata_path)
+            index_service.build_index(valid, chunk_texts=ordered_texts)
 
-    clear_service_cache()
+        index_service.save()
+        faiss_storage.upload_user_index(user_id, temp_dir)
+    finally:
+        faiss_storage.cleanup_temp_dir(temp_dir)
 
     db = DocumentDBService()
     db.insert_document(
