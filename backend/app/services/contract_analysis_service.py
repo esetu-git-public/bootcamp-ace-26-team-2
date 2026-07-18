@@ -142,11 +142,16 @@ class ContractAnalysisService:
                             missing_clauses, recommendations
         """
         if not chunks:
+            all_missing = sorted(self.CLAUSE_PATTERNS.keys())
             return {
                 "health_score": 0.0,
                 "risk_level": "Critical",
                 "present_clauses": [],
-                "missing_clauses": list(self.CLAUSE_PATTERNS.keys()),
+                "missing_clauses": all_missing,
+                "deductions": [
+                    {"clause": c, "weight": self.CLAUSE_PENALTIES[c]}
+                    for c in all_missing
+                ],
                 "recommendations": list(self.RECOMMENDATION_TEMPLATES.values()),
             }
 
@@ -161,6 +166,10 @@ class ContractAnalysisService:
             "risk_level": risk,
             "present_clauses": sorted(present),
             "missing_clauses": sorted(missing),
+            "deductions": [
+                {"clause": c, "weight": self.CLAUSE_PENALTIES[c]}
+                for c in sorted(missing)
+            ],
             "recommendations": recommendations,
         }
 
