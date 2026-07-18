@@ -1,3 +1,4 @@
+import { supabase } from '../utils/supabase';
 import { getDocuments } from './documents';
 
 function getMockHealthData(documentId) {
@@ -75,23 +76,23 @@ function getMockHealthData(documentId) {
     risk_level: riskLevel,
     present_clauses: present,
     missing_clauses: missing,
+    deductions: missing.map((c) => ({ clause: c, weight: penalties[c] || 0 })),
     recommendations,
   };
 }
 
-const token =
-  typeof window !== 'undefined'
-    ? window.__SUPABASE_ACCESS_TOKEN ||
-      localStorage.getItem('supabase_access_token') ||
-      ''
-    : '';
-
 export async function fetchDocumentHealth(documentId) {
+  let token = '';
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    token = session?.access_token || '';
+  } catch {
+    // ignore, will fall back to mock
+  }
+
   try {
     const res = await fetch(`/documents/${documentId}/health`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
