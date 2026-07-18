@@ -1,6 +1,4 @@
-import { getDocuments } from './documents';
-
-// TODO: Replace with actual API integration
+import { supabase } from '../utils/supabase';
 
 function formatBytes(bytes) {
   if (!bytes || bytes <= 0) return null;
@@ -13,38 +11,86 @@ function formatBytes(bytes) {
   return (bytes / 1024).toFixed(1) + ' KB';
 }
 
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function fetchDashboardStats() {
-  const docs = getDocuments();
-  const totalBytes = docs.reduce((sum, d) => sum + (d.rawSize || 0), 0);
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch('/documents', { headers });
+
+    if (!response.ok) {
+      return emptyDashboardResponse();
+    }
+
+    const data = await response.json();
+    const count = data.length;
+    const totalBytes = data.reduce((sum, d) => sum + (d.file_size || 0), 0);
+
+    const mapped = data.map((doc) => ({
+      id: doc.id,
+      documentId: doc.document_id,
+      name: doc.filename,
+      uploadedAt: new Date(doc.uploaded_at).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric',
+      }),
+      createdAt: new Date(doc.uploaded_at).getTime(),
+      status: doc.indexed ? 'indexed' : 'processing',
+      rawSize: doc.file_size,
+      size: doc.file_size > 1024 * 1024
+        ? (doc.file_size / 1024 / 1024).toFixed(2) + ' MB'
+        : (doc.file_size / 1024).toFixed(1) + ' KB',
+    }));
+
+    const activityItems = mapped.slice(0, 10).map((doc) => ({
+      id: `activity-${doc.id}`,
+      action: `Uploaded ${doc.name}`,
+      timestamp: doc.uploadedAt,
+    }));
+
+    return {
+      contractsUploaded: count || null,
+      documentsIndexed: count || null,
+      storageUsed: formatBytes(totalBytes),
+      documents: mapped,
+      activity: activityItems,
+      appStatus: {
+        authentication: 'connected',
+        documents: mapped.length > 0 ? 'ready' : 'connected',
+        aiAssistant: 'available',
+        database: 'checking',
+      },
+    };
+  } catch {
+    return emptyDashboardResponse();
+  }
+}
+
+function emptyDashboardResponse() {
   return {
-    contractsUploaded: docs.length || null,
-    documentsIndexed: docs.filter((d) => d.status === 'indexed').length || null,
-    storageUsed: formatBytes(totalBytes),
+    contractsUploaded: null,
+    documentsIndexed: null,
+    storageUsed: null,
+    documents: [],
+    activity: [],
+    appStatus: null,
   };
 }
 
 export async function fetchRecentDocuments() {
-  return getDocuments().slice(0, 5);
+  const stats = await fetchDashboardStats();
+  return stats.documents.slice(0, 5);
 }
 
 export async function fetchRecentActivity() {
-  const docs = getDocuments();
-  if (docs.length === 0) return [];
-
-  return docs.slice(0, 10).map((doc) => ({
-    id: `activity-${doc.id}`,
-    action: `Uploaded ${doc.name}`,
-    timestamp: doc.uploadedAt,
-  }));
+  const stats = await fetchDashboardStats();
+  return stats.activity;
 }
 
 export async function fetchApplicationStatus() {
-  // TODO: Connect to backend API for real status checks
-  const docs = getDocuments();
-  return {
-    authentication: 'connected',
-    documents: docs.length > 0 ? 'ready' : 'connected',
-    aiAssistant: 'available',
-    database: 'checking',
-  };
+  const stats = await fetchDashboardStats();
+  return stats.appStatus;
 }

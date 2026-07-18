@@ -52,6 +52,15 @@ async def upload_document(
     if file.content_type not in ACCEPTED_TYPES and not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
 
+    db_service = DocumentDBService()
+    user_docs = db_service.get_user_documents(user_id)
+    if len(user_docs) >= 30:
+        raise HTTPException(
+            status_code=400,
+            detail="Document limit reached (30/30). Delete existing documents before uploading new ones.",
+        )
+
+
     contents = await file.read()
     text, num_pages = _extract_pdf_text(contents)
 
